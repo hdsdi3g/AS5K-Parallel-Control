@@ -32,12 +32,10 @@ public class Serverchannel {
 	
 	private final Logger log;
 	private Configuration config;
-	private String server_ref;
 	
 	public Serverchannel(Configuration config, String server_ref) throws ParserConfigurationException {
 		log = LogManager.getLogger("as5kpc.channel." + server_ref);
 		this.config = config;
-		this.server_ref = server_ref;
 		
 		worker = new Worker(this);
 		worker.setDaemon(true);
