@@ -21,50 +21,42 @@ import org.w3c.dom.NodeList;
 
 class ServerResponseAbout implements ServerResponse {
 	
-	private Serverchannel channel;
-	
-	public ServerResponseAbout(Serverchannel channel) {
-		this.channel = channel;
-		if (channel == null) {
-			throw new NullPointerException("\"channel\" can't to be null");
-		}
-	}
+	String version = "";
+	int ch_num = -1;
+	boolean can_record = true;
+	String channel_name = "";
+	String osd_name = "";
 	
 	public void injectServerResponse(Element ams_root_element) {
 		NodeList nodes = ams_root_element.getChildNodes();
+		NodeList s_nodes;
 		Element element = null;
 		for (int pos = 0; pos < nodes.getLength(); pos++) {
 			if (nodes.item(pos).getNodeName().equalsIgnoreCase("Version")) {
-				channel.version = nodes.item(pos).getTextContent();
+				version = nodes.item(pos).getTextContent();
 			} else if (nodes.item(pos).getNodeName().equalsIgnoreCase("ChnInfo")) {
 				element = (Element) nodes.item(pos);
 				if (element.hasAttribute("CanRecord")) {
-					channel.can_record = Boolean.valueOf(element.getAttribute("CanRecord"));
+					can_record = Boolean.valueOf(element.getAttribute("CanRecord"));
 				}
 				if (element.hasAttribute("ChnNum")) {
-					channel.ch_num = Integer.valueOf(element.getAttribute("ChnNum"));
+					ch_num = Integer.valueOf(element.getAttribute("ChnNum"));
 				}
-				break;
-			}
-		}
-		if (element != null) {
-			if (element.getNodeName().equalsIgnoreCase("ChnInfo")) {
-				nodes = element.getChildNodes();
-				for (int pos = 0; pos < nodes.getLength(); pos++) {
-					if (nodes.item(pos).getNodeName().equalsIgnoreCase("Channel")) {
-						element = (Element) nodes.item(pos);
+				s_nodes = element.getChildNodes();
+				for (int s_pos = 0; s_pos < s_nodes.getLength(); s_pos++) {
+					if (s_nodes.item(s_pos).getNodeName().equalsIgnoreCase("Channel")) {
+						element = (Element) s_nodes.item(s_pos);
 						if (element.hasAttribute("Num")) {
-							if (channel.ch_num != Integer.valueOf(element.getAttribute("Num"))) {
+							if (ch_num != Integer.valueOf(element.getAttribute("Num"))) {
 								continue;
 							}
 						}
-						channel.channel_name = element.getAttribute("Name");
-						channel.osd_name = element.getAttribute("OSDName");
+						channel_name = element.getAttribute("Name");
+						osd_name = element.getAttribute("OSDName");
 					}
 				}
 			}
 		}
-		
 	}
 	
 }

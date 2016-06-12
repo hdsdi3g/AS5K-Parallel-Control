@@ -17,6 +17,7 @@
 package hd3gtv.as5kpc;
 
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -38,44 +39,44 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.xml.sax.SAXException;
 
-public class ProtocolHandler {
+public class ProtocolHandler implements Closeable {
 	
-	private Document document;
-	private Element root_ams_element;
-	private Element last_order_element;
+	private static final Logger log = LogManager.getLogger(ProtocolHandler.class);
+	
 	private Socket socket;
-	private Logger log;
 	private InputStream is;
 	private OutputStream os;
-	private ServerResponse response;
 	
-	public ProtocolHandler(Socket socket, Logger log) throws ParserConfigurationException, IOException {
+	public ProtocolHandler(Socket socket) throws ParserConfigurationException, IOException {
 		this.socket = socket;
-		this.log = log;
 		is = socket.getInputStream();
 		os = socket.getOutputStream();
-		
-		DocumentBuilderFactory fq = DocumentBuilderFactory.newInstance();
-		DocumentBuilder constructeur = fq.newDocumentBuilder();
-		document = constructeur.newDocument();
-		document.setXmlVersion("1.0");
-		document.setXmlStandalone(true);
-		
-		root_ams_element = document.createElement("AMS");
-		document.appendChild(root_ams_element);
 	}
 	
-	private void _reset() {
-		if (last_order_element != null) {
-			root_ams_element.removeChild(last_order_element);
-			last_order_element = null;
+	private Document createDocument() {
+		try {
+			DocumentBuilderFactory fq = DocumentBuilderFactory.newInstance();
+			DocumentBuilder constructeur = fq.newDocumentBuilder();
+			Document document = constructeur.newDocument();
+			document.setXmlVersion("1.0");
+			document.setXmlStandalone(true);
+			return document;
+		} catch (Exception e) {
+			log.error("Can't make XML document", e);
 		}
+		return null;
 	}
 	
-	private byte[] _makeMessage() throws IOException {
+	/**
+	 * @return maybe null
+	 */
+	private ServerResponse send(Document document, ServerResponse response) throws IOException {
+		byte[] message = null;
 		try {
 			DOMSource domSource = new DOMSource(document);
 			StringWriter stringwriter = new StringWriter();
@@ -85,20 +86,13 @@ public class ProtocolHandler {
 			
 			transformer.setOutputProperty(OutputKeys.INDENT, "no");
 			transformer.transform(domSource, streamresult);
-			return stringwriter.toString().getBytes("UTF-8");
+			message = stringwriter.toString().getBytes("UTF-8");
 		} catch (UnsupportedEncodingException uee) {
 			throw new IOException("Encoding XML is not supported", uee);
 		} catch (TransformerException tc) {
 			throw new IOException("Converting error between XML and String", tc);
 		}
 		
-	}
-	
-	/**
-	 * @return maybe null
-	 */
-	public ServerResponse send() throws IOException {
-		byte[] message = _makeMessage();
 		if (log.isTraceEnabled()) {
 			log.trace("Raw send >> " + new String(message, "UTF-8"));
 		}
@@ -119,7 +113,69 @@ public class ProtocolHandler {
 				try {
 					while ((bytesRead = is.read(bytes)) != -1) {
 						try {
-							return parseResponse(bytes, 0, bytesRead);
+							if (log.isTraceEnabled()) {
+								log.trace("Raw receive << " + new String(bytes, 0, bytesRead, "UTF-8"));
+							}
+							/**
+							 * Decode XML response
+							 */
+							ByteArrayInputStream bais = new ByteArrayInputStream(bytes, 0, bytesRead);
+							DocumentBuilderFactory xmlDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
+							DocumentBuilder xmlDocumentBuilder = xmlDocumentBuilderFactory.newDocumentBuilder();
+							xmlDocumentBuilder.setErrorHandler(null);
+							document = xmlDocumentBuilder.parse(bais);
+							Element root_element = document.getDocumentElement();
+							
+							/**
+							 * Check if result is valid/positive.
+							 */
+							Element rply = (Element) root_element.getElementsByTagName("Reply").item(0);
+							String status = rply.getAttribute("Status").toLowerCase();
+							if (status.equals("ok") == false) {
+								String _message = "(no message)";
+								if (rply.hasAttribute("Msg")) {
+									_message = rply.getAttribute("Msg");
+								}
+								
+								String error_type = "";
+								if (rply.hasAttribute("ErrNum")) {
+									int err = Integer.parseInt(rply.getAttribute("ErrNum"));
+									switch (err) {
+									case 1:
+										error_type = "Command Error";
+										break;
+									case 2:
+										error_type = "System Error";
+										break;
+									case 3:
+										error_type = "XML format error";
+										break;
+									case 4:
+										error_type = "System BUSY";
+										break;
+									default:
+										break;
+									}
+								}
+								
+								if (status.equals("warning")) {
+									log.warn(_message + ": " + error_type);
+								}
+								if (status.equals("error")) {
+									if (response instanceof ServerResponseClipdata && _message.toLowerCase().endsWith("does not exist")) {
+										((ServerResponseClipdata) response).not_found = true;
+										return response;
+									} else {
+										throw new IOException("Server return: \"" + _message + ": " + error_type + "\"");
+									}
+								}
+							}
+							
+							if (response != null) {
+								response.injectServerResponse(root_element);
+							}
+							
+							return response;
 						} catch (ParserConfigurationException pce) {
 							log.error("DOM parser error", pce);
 						} catch (SAXException se) {
@@ -143,161 +199,138 @@ public class ProtocolHandler {
 		return null;
 	}
 	
-	private ServerResponse parseResponse(byte[] received_message, int offset, int length) throws ParserConfigurationException, SAXException, IOException {
-		if (log.isTraceEnabled()) {
-			log.trace("Raw receive << " + new String(received_message, offset, length, "UTF-8"));
-		}
+	public ServerResponseAbout initialize() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
 		
-		ByteArrayInputStream bais = new ByteArrayInputStream(received_message, offset, length);
-		DocumentBuilderFactory xmlDocumentBuilderFactory = DocumentBuilderFactory.newInstance();
-		DocumentBuilder xmlDocumentBuilder = xmlDocumentBuilderFactory.newDocumentBuilder();
-		xmlDocumentBuilder.setErrorHandler(null);
-		Document document = xmlDocumentBuilder.parse(bais);
-		Element root_element = document.getDocumentElement();
-		
-		/**
-		 * Check if result is valid/positive.
-		 */
-		Element rply = (Element) root_element.getElementsByTagName("Reply").item(0);
-		String status = rply.getAttribute("Status").toLowerCase();
-		if (status.equals("ok") == false) {
-			String message = "(no message)";
-			if (rply.hasAttribute("Msg")) {
-				message = rply.getAttribute("Msg");
-			}
-			
-			String error_type = "";
-			if (rply.hasAttribute("ErrNum")) {
-				int err = Integer.parseInt(rply.getAttribute("ErrNum"));
-				switch (err) {
-				case 1:
-					error_type = "Command Error";
-					break;
-				case 2:
-					error_type = "System Error";
-					break;
-				case 3:
-					error_type = "XML format error";
-					break;
-				case 4:
-					error_type = "System BUSY";
-					break;
-				default:
-					break;
-				}
-			}
-			
-			if (status.equals("warning")) {
-				log.warn(message + ": " + error_type);
-			}
-			if (status.equals("error")) {
-				throw new IOException("Server return: \"" + message + ": " + error_type + "\"");
-			}
-		}
-		
-		ServerResponse result = response;
-		response = null;
-		
-		if (result != null) {
-			result.injectServerResponse(root_element);
-		}
-		
-		return result;
-	}
-	
-	public void initialize(Serverchannel channel) {
-		_reset();
-		last_order_element = document.createElement("Configuration");
+		Element last_order_element = document.createElement("Configuration");
 		Element init = document.createElement("Initialize");
 		last_order_element.appendChild(init);
 		root_ams_element.appendChild(last_order_element);
-		response = new ServerResponseAbout(channel);
+		return (ServerResponseAbout) send(document, new ServerResponseAbout());
 	}
 	
-	public void disconnect() {
-		_reset();
-		last_order_element = document.createElement("Configuration");
+	public void close() throws IOException {
+		IOUtils.closeQuietly(is);
+		IOUtils.closeQuietly(os);
+	}
+	
+	public ServerResponseOk disconnect() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("Configuration");
 		Element init = document.createElement("Disconnect");
 		last_order_element.appendChild(init);
 		root_ams_element.appendChild(last_order_element);
-		response = new ServerResponseOk();
+		ServerResponseOk result = (ServerResponseOk) send(document, new ServerResponseOk());
+		close();
+		return result;
 	}
 	
-	public void getConfigInfo(Serverchannel channel) {
-		_reset();
-		last_order_element = document.createElement("Configuration");
+	public ServerResponseAbout getConfigInfo(ServerResponseAbout init_result) throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("Configuration");
 		Element ci = document.createElement("GetConfigInfo");
 		last_order_element.appendChild(ci);
 		root_ams_element.appendChild(last_order_element);
-		response = new ServerResponseAbout(channel);
+		send(document, init_result);
+		return init_result;
 	}
 	
-	public void getHardwareStatus() {
-		_reset();
-		last_order_element = document.createElement("Configuration");
+	public ServerResponseHWstatus getHardwareStatus() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("Configuration");
 		Element hs = document.createElement("GetHardwareStatus");
 		hs.setAttribute("Verbose", "true");
 		last_order_element.appendChild(hs);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseHWstatus) send(document, new ServerResponseHWstatus());
 	}
 	
-	public void getStatus() {
-		_reset();
-		last_order_element = document.createElement("TransportControl");
+	public ServerResponseStatus getStatus() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("TransportControl");
 		Element status = document.createElement("GetStatus");
 		status.setAttribute("InputStatus", "true");
 		last_order_element.appendChild(status);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseStatus) send(document, new ServerResponseStatus());
 	}
 	
-	public void recordCue(String id, String name) {
-		_reset();
-		last_order_element = document.createElement("TransportControl");
+	public ServerResponseId recordCue(String id, String name) throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("TransportControl");
 		Element rec = document.createElement("RecordCue");
 		rec.setAttribute("ID", id);
 		rec.setAttribute("Name", name);
 		rec.setAttribute("EjectFirst", "true");
 		last_order_element.appendChild(rec);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseId) send(document, new ServerResponseId());
 	}
 	
-	public void record() {
-		_reset();
-		last_order_element = document.createElement("TransportControl");
+	public ServerResponseOk record() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("TransportControl");
 		Element rec = document.createElement("Record");
 		last_order_element.appendChild(rec);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseOk) send(document, new ServerResponseOk());
 	}
 	
-	public void eject() {
-		_reset();
-		last_order_element = document.createElement("TransportControl");
+	public ServerResponseOk eject() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("TransportControl");
 		Element ej = document.createElement("Eject");
 		last_order_element.appendChild(ej);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseOk) send(document, new ServerResponseOk());
 	}
 	
-	public void stop() {
-		_reset();
-		last_order_element = document.createElement("TransportControl");
+	public ServerResponseOk stop() throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("TransportControl");
 		Element stop = document.createElement("Stop");
 		last_order_element.appendChild(stop);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseOk) send(document, new ServerResponseOk());
 	}
 	
-	public void getClipData(String id) {
-		_reset();
-		last_order_element = document.createElement("DatabaseControl");
+	public ServerResponseClipdata getClipData(String id) throws IOException {
+		Document document = createDocument();
+		Element root_ams_element = document.createElement("AMS");
+		document.appendChild(root_ams_element);
+		
+		Element last_order_element = document.createElement("DatabaseControl");
 		Element cd = document.createElement("GetClipData");
 		cd.setAttribute("ID", id);
 		last_order_element.appendChild(cd);
 		root_ams_element.appendChild(last_order_element);
-		// TODO Decode response response = new
+		return (ServerResponseClipdata) send(document, new ServerResponseClipdata());
 	}
+	
 }
