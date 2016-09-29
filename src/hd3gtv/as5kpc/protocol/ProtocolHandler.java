@@ -14,7 +14,7 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2016
  * 
 */
-package hd3gtv.as5kpc;
+package hd3gtv.as5kpc.protocol;
 
 import java.io.ByteArrayInputStream;
 import java.io.Closeable;

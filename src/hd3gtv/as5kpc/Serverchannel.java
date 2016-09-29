@@ -28,6 +28,10 @@ import org.apache.commons.io.IOUtils;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
+import hd3gtv.as5kpc.protocol.ProtocolHandler;
+import hd3gtv.as5kpc.protocol.ServerResponseAbout;
+import hd3gtv.as5kpc.protocol.ServerResponseClipdata;
+import hd3gtv.as5kpc.protocol.ServerResponseStatus;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Service;
 import javafx.concurrent.Task;
@@ -153,7 +157,7 @@ public class Serverchannel {
 					ProtocolHandler mf = new ProtocolHandler(socket);
 					
 					ServerResponseAbout result = mf.initialize();
-					server_label = mf.getConfigInfo(result).osd_name;
+					server_label = mf.getConfigInfo(result).getOsd_name();
 					mf.disconnect();
 					IOUtils.closeQuietly(mf);
 					IOUtils.closeQuietly(socket);
@@ -283,9 +287,9 @@ public class Serverchannel {
 					mf.initialize();
 					String valid_id = makeValidId(id, take);
 					ServerResponseClipdata cd = mf.getClipData(valid_id);
-					first_name = cd.name;
+					first_name = cd.getName();
 					
-					while (cd.not_found == false) {
+					while (cd.isNot_found() == false) {
 						Thread.sleep(50);
 						take++;
 						valid_id = makeValidId(id, take);

@@ -14,27 +14,23 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2016
  * 
 */
-package hd3gtv.as5kpc;
+package hd3gtv.as5kpc.protocol;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-class ServerResponseClipdata implements ServerResponse {
+class ServerResponseHWstatus implements ServerResponse {
 	
-	String id;
-	String name;
-	String len;
-	boolean not_found = false;
+	boolean is_ok = false;
+	String message;
 	
 	public void injectServerResponse(Element ams_root_element) {
 		NodeList nodes = ams_root_element.getChildNodes();
-		Element element;
 		for (int pos = 0; pos < nodes.getLength(); pos++) {
-			if (nodes.item(pos).getNodeName().equalsIgnoreCase("ClipData")) {
-				element = (Element) nodes.item(pos);
-				id = element.getAttribute("ID");
-				name = element.getAttribute("Name");
-				len = element.getAttribute("Len");
+			if (nodes.item(pos).getNodeName().equalsIgnoreCase("HardwareStatus")) {
+				is_ok = nodes.item(pos).getTextContent().equalsIgnoreCase("OK");
+			} else if (nodes.item(pos).getNodeName().equalsIgnoreCase("Msg")) {
+				message = nodes.item(pos).getTextContent();
 				break;
 			}
 		}

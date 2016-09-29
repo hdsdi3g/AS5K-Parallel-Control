@@ -14,12 +14,12 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2016
  * 
 */
-package hd3gtv.as5kpc;
+package hd3gtv.as5kpc.protocol;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-class ServerResponseStatus implements ServerResponse {
+public class ServerResponseStatus implements ServerResponse {
 	
 	/**
 	 * IDLE – No Active Clip
@@ -42,6 +42,33 @@ class ServerResponseStatus implements ServerResponse {
 	String actual_tc;
 	// String video_standard;
 	boolean has_video;
+	
+	ServerResponseStatus() {
+	}
+	
+	public String getActive_id() {
+		return active_id;
+	}
+	
+	public String getActive_name() {
+		return active_name;
+	}
+	
+	public String getActual_tc() {
+		return actual_tc;
+	}
+	
+	public boolean isHas_video() {
+		return has_video;
+	}
+	
+	public boolean isRec_mode() {
+		return rec_mode;
+	}
+	
+	public String getControl() {
+		return control;
+	}
 	
 	public void injectServerResponse(Element ams_root_element) {
 		NodeList nodes = ams_root_element.getChildNodes();

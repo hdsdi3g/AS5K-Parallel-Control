@@ -14,23 +14,20 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2016
  * 
 */
-package hd3gtv.as5kpc;
+package hd3gtv.as5kpc.protocol;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-class ServerResponseHWstatus implements ServerResponse {
+class ServerResponseId implements ServerResponse {
 	
-	boolean is_ok = false;
-	String message;
+	String id;
 	
 	public void injectServerResponse(Element ams_root_element) {
 		NodeList nodes = ams_root_element.getChildNodes();
 		for (int pos = 0; pos < nodes.getLength(); pos++) {
-			if (nodes.item(pos).getNodeName().equalsIgnoreCase("HardwareStatus")) {
-				is_ok = nodes.item(pos).getTextContent().equalsIgnoreCase("OK");
-			} else if (nodes.item(pos).getNodeName().equalsIgnoreCase("Msg")) {
-				message = nodes.item(pos).getTextContent();
+			if (nodes.item(pos).getNodeName().equalsIgnoreCase("ID")) {
+				id = nodes.item(pos).getTextContent();
 				break;
 			}
 		}

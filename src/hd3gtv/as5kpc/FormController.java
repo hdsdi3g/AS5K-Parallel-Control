@@ -31,6 +31,8 @@ import hd3gtv.as5kpc.Serverchannel.BackgroundWatcher;
 import hd3gtv.as5kpc.Serverchannel.GetFreeClipIdBackgound;
 import hd3gtv.as5kpc.Serverchannel.RecBackgound;
 import hd3gtv.as5kpc.Serverchannel.StopEjectBackgound;
+import hd3gtv.as5kpc.protocol.ServerResponseAbout;
+import hd3gtv.as5kpc.protocol.ServerResponseStatus;
 import javafx.concurrent.WorkerStateEvent;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -112,11 +114,11 @@ public class FormController {
 				MainClass.scene.setCursor(Cursor.DEFAULT);
 				
 				ServerResponseAbout about = absb.getValue();
-				updateVTRMedia(channel.getVtrIndex(), "PROTOCOL VERSION: " + about.version, "");
-				if (about.can_record) {
-					updateVTRStatus(channel.getVtrIndex(), about.osd_name + " #" + about.ch_num, about.channel_name, "--:--:--:--", "Loading...");
+				updateVTRMedia(channel.getVtrIndex(), "PROTOCOL VERSION: " + about.getVersion(), "");
+				if (about.isCan_record()) {
+					updateVTRStatus(channel.getVtrIndex(), about.getOsd_name() + " #" + about.getCh_num(), about.getChannel_name(), "--:--:--:--", "Loading...");
 				} else {
-					updateVTRStatus(channel.getVtrIndex(), about.osd_name + " #" + about.ch_num, about.channel_name, "--:--:--:--", "CAN'T RECORD");
+					updateVTRStatus(channel.getVtrIndex(), about.getOsd_name() + " #" + about.getCh_num(), about.getChannel_name(), "--:--:--:--", "CAN'T RECORD");
 					return;
 				}
 				BackgroundWatcher bw = channel.createBackgroundWatcher();
@@ -125,14 +127,14 @@ public class FormController {
 				bw.setOnSucceeded((WorkerStateEvent event_bw) -> {
 					ServerResponseStatus status = bw.getValue();
 					String warn = "";
-					if (status.rec_mode == false) {
+					if (status.isRec_mode() == false) {
 						warn = "Standby";
-					} else if (status.has_video == false) {
+					} else if (status.isHas_video() == false) {
 						warn = "NO VIDEO!";
 					}
 					
-					updateVTRStatus(channel.getVtrIndex(), about.osd_name, status.control, status.actual_tc, warn);
-					updateVTRMedia(channel.getVtrIndex(), status.active_name, status.active_id);
+					updateVTRStatus(channel.getVtrIndex(), about.getOsd_name(), status.getControl(), status.getActual_tc(), warn);
+					updateVTRMedia(channel.getVtrIndex(), status.getActive_name(), status.getActive_id());
 				});
 				
 				bw.start();

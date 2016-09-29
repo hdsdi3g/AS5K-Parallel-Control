@@ -14,18 +14,41 @@
  * Copyright (C) hdsdi3g for hd3g.tv 2016
  * 
 */
-package hd3gtv.as5kpc;
+package hd3gtv.as5kpc.protocol;
 
 import org.w3c.dom.Element;
 import org.w3c.dom.NodeList;
 
-class ServerResponseAbout implements ServerResponse {
+public class ServerResponseAbout implements ServerResponse {
 	
 	String version = "";
 	int ch_num = -1;
 	boolean can_record = true;
 	String channel_name = "";
 	String osd_name = "";
+	
+	ServerResponseAbout() {
+	}
+	
+	public int getCh_num() {
+		return ch_num;
+	}
+	
+	public String getChannel_name() {
+		return channel_name;
+	}
+	
+	public String getOsd_name() {
+		return osd_name;
+	}
+	
+	public String getVersion() {
+		return version;
+	}
+	
+	public boolean isCan_record() {
+		return can_record;
+	}
 	
 	public void injectServerResponse(Element ams_root_element) {
 		NodeList nodes = ams_root_element.getChildNodes();
