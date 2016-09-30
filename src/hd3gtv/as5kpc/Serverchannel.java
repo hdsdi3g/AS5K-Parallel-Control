@@ -265,12 +265,6 @@ public class Serverchannel {
 		return new GetFreeClipIdBackgound(id, take);
 	}
 	
-	static String makeValidId(int id, int take) {
-		String _id = "00000000" + String.valueOf(id);
-		_id = _id.substring(_id.length() - 8) + "_" + String.valueOf(take);
-		return _id;
-	}
-	
 	class GetFreeClipIdBackgound extends Service<HashMap<String, String>> {
 		
 		private int id;
@@ -319,6 +313,10 @@ public class Serverchannel {
 	}
 	
 	public String getServerLabel() {
+		if (independant_channel == false) {
+			return " - " + (getVtrIndex() + 1);
+		}
+		
 		return server_label;
 	}
 	
@@ -366,6 +364,8 @@ public class Serverchannel {
 		
 		absb.start();
 	}
+	
+	boolean independant_channel = true;
 	
 	void appCue(TextField mediaid, Label takenum, TextField showname, Button btncue, Button btnrec) {
 		int id;
@@ -418,7 +418,7 @@ public class Serverchannel {
 	
 	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
 	
-	private String makeName(String server_label, TextField showname) {
+	private String makeName(String suffix_label, TextField showname) {
 		StringBuilder sb = new StringBuilder();
 		Calendar c = Calendar.getInstance();
 		if (c.get(Calendar.DAY_OF_MONTH) < 10) {
@@ -438,17 +438,26 @@ public class Serverchannel {
 		
 		sb.append(show_name);
 		
-		if (show_name.endsWith(server_label) == false) {
+		if (show_name.endsWith(suffix_label) == false) {
 			sb.append(" ");
-			sb.append(server_label);
+			sb.append(suffix_label);
 		}
 		return sb.toString();
+	}
+	
+	String makeValidId(int id, int take) {
+		String _id = "00000000" + String.valueOf(id);
+		_id = _id.substring(_id.length() - 8) + "_" + String.valueOf(take);
+		if (independant_channel == false) {
+			_id = _id + "_" + (getVtrIndex() + 1);
+		}
+		return _id;
 	}
 	
 	void appRec(TextField mediaid, int _take, TextField showname) {
 		int _id;
 		try {
-			_id = Integer.parseInt(mediaid.getText()) + getVtrIndex();
+			_id = Integer.parseInt(mediaid.getText());
 		} catch (Exception e) {
 			Alert alert = new Alert(AlertType.WARNING);
 			alert.setTitle("Media ID");
@@ -458,7 +467,11 @@ public class Serverchannel {
 			return;
 		}
 		
-		RecBackgound rec = createRecBackgound(Serverchannel.makeValidId(_id, _take), makeName(getServerLabel(), showname));
+		if (independant_channel) {
+			_id += getVtrIndex();
+		}
+		
+		RecBackgound rec = createRecBackgound(makeValidId(_id, _take), makeName(getServerLabel(), showname));
 		rec.start();
 	}
 	

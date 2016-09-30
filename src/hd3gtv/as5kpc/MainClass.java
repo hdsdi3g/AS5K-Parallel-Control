@@ -53,6 +53,9 @@ public class MainClass {
 		} else if (args[0].equals("2")) {
 			conf_channels = app_config.getStringArray("mode2");
 			loadMode2(args, conf_channels);
+		} else if (args[0].equals("3")) {
+			conf_channels = app_config.getStringArray("mode3");
+			loadMode3(args, conf_channels);
 		}
 		
 	}
@@ -70,6 +73,29 @@ public class MainClass {
 			}
 		} else {
 			throw new NullPointerException("Can't found a \"mode2\" tag in app.properties");
+		}
+	}
+	
+	private static void loadMode3(String[] args, String[] conf_channels) throws Exception {
+		if (conf_channels != null) {
+			if (conf_channels.length == 3) {
+				log.debug("Found channel entry in app conf: " + conf_channels[0]);
+				log.debug("Found channel entry in app conf: " + conf_channels[1]);
+				log.debug("Found channel entry in app conf: " + conf_channels[2]);
+				ApplicationMode3.channel1 = new Serverchannel(loadConf(conf_channels[0] + ".properties"), conf_channels[0], 0);
+				ApplicationMode3.channel2 = new Serverchannel(loadConf(conf_channels[1] + ".properties"), conf_channels[1], 1);
+				ApplicationMode3.channel3 = new Serverchannel(loadConf(conf_channels[2] + ".properties"), conf_channels[2], 2);
+				
+				ApplicationMode3.channel1.independant_channel = false;
+				ApplicationMode3.channel2.independant_channel = false;
+				ApplicationMode3.channel3.independant_channel = false;
+				
+				Application.launch(ApplicationMode3.class, args);
+			} else {
+				throw new NullPointerException("The \"mode3\" tag in app.properties not 3");
+			}
+		} else {
+			throw new NullPointerException("Can't found a \"mode3\" tag in app.properties");
 		}
 	}
 	

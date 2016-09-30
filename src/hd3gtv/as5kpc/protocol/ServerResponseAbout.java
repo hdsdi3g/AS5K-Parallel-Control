@@ -64,6 +64,9 @@ public class ServerResponseAbout implements ServerResponse {
 				}
 				if (element.hasAttribute("ChnNum")) {
 					ch_num = Integer.valueOf(element.getAttribute("ChnNum"));
+					if (ch_num == 6) {
+						ch_num = 4;
+					}
 				}
 				s_nodes = element.getChildNodes();
 				for (int s_pos = 0; s_pos < s_nodes.getLength(); s_pos++) {
