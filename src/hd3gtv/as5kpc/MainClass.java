@@ -16,9 +16,6 @@
 */
 package hd3gtv.as5kpc;
 
-import java.io.IOException;
-import java.util.ArrayList;
-
 import org.apache.commons.configuration2.FileBasedConfiguration;
 import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
@@ -29,23 +26,14 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 
 import javafx.application.Application;
-import javafx.event.EventHandler;
-import javafx.fxml.FXMLLoader;
-import javafx.scene.Cursor;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.scene.image.Image;
-import javafx.stage.Stage;
-import javafx.stage.WindowEvent;
 
-public class MainClass extends Application {
+public class MainClass {
 	
 	private static final Logger log = LogManager.getLogger(MainClass.class);
 	
 	private static FileBasedConfiguration app_config;
-	static ArrayList<Serverchannel> channels;
 	
-	private static FileBasedConfiguration loadConf(String file) throws ConfigurationException {
+	static FileBasedConfiguration loadConf(String file) throws ConfigurationException {
 		org.apache.commons.configuration2.builder.fluent.Parameters params = new org.apache.commons.configuration2.builder.fluent.Parameters();
 		PropertiesBuilderParameters pbp = params.properties().setFileName(file);
 		pbp.setListDelimiterHandler(new DefaultListDelimiterHandler(','));
@@ -57,56 +45,32 @@ public class MainClass extends Application {
 	
 	public static void main(String[] args) throws Exception {
 		app_config = loadConf("app.properties");
+		String[] conf_channels;
 		
-		String[] conf_channels = app_config.getStringArray("channels");
-		if (conf_channels != null) {
-			if (conf_channels.length > 0) {
-				channels = new ArrayList<Serverchannel>(conf_channels.length);
-				for (int pos = 0; pos < conf_channels.length; pos++) {
-					log.debug("Found channel entry in app conf: " + conf_channels[pos]);
-					channels.add(new Serverchannel(loadConf(conf_channels[pos] + ".properties"), conf_channels[pos], pos));
-				}
-			}
+		if (args.length == 0) {
+			conf_channels = app_config.getStringArray("mode2");
+			loadMode2(args, conf_channels);
+		} else if (args[0].equals("2")) {
+			conf_channels = app_config.getStringArray("mode2");
+			loadMode2(args, conf_channels);
 		}
 		
-		if (channels == null) {
-			throw new NullPointerException("Can't found a \"channels\" tag in app.properties");
-		}
-		if (channels.isEmpty()) {
-			throw new NullPointerException("The \"channels\" tag in app.properties is empty");
-		}
-		
-		/*channels.forEach(c -> {
-			c.start();
-		});*/
-		
-		launch(args);
 	}
 	
-	static Scene scene;
-	
-	public void start(Stage stage) throws IOException {
-		stage.setTitle("AirSpeed Parallel Recorder");
-		stage.setResizable(false);
-		stage.setAlwaysOnTop(true);
-		
-		stage.getIcons().add(new Image(this.getClass().getResource("icon-512.png").toString()));
-		stage.getIcons().add(new Image(this.getClass().getResource("icon-48.png").toString()));
-		
-		Parent root = FXMLLoader.load(getClass().getResource("main-form.fxml"));
-		
-		scene = new Scene(root);
-		
-		stage.setScene(scene);
-		stage.setOnShown(new EventHandler<WindowEvent>() {
-			
-			@Override
-			public void handle(WindowEvent event) {
-				scene.setCursor(Cursor.WAIT);
+	private static void loadMode2(String[] args, String[] conf_channels) throws Exception {
+		if (conf_channels != null) {
+			if (conf_channels.length == 2) {
+				log.debug("Found channel entry in app conf: " + conf_channels[0]);
+				log.debug("Found channel entry in app conf: " + conf_channels[1]);
+				ApplicationMode2.channel1 = new Serverchannel(loadConf(conf_channels[0] + ".properties"), conf_channels[0], 0);
+				ApplicationMode2.channel2 = new Serverchannel(loadConf(conf_channels[1] + ".properties"), conf_channels[1], 1);
+				Application.launch(ApplicationMode2.class, args);
+			} else {
+				throw new NullPointerException("The \"mode2\" tag in app.properties not 2");
 			}
-		});
-		
-		stage.show();
+		} else {
+			throw new NullPointerException("Can't found a \"mode2\" tag in app.properties");
+		}
 	}
 	
 }

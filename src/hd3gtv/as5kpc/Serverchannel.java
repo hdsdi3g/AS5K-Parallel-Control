@@ -19,7 +19,10 @@ package hd3gtv.as5kpc;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
+import java.text.Normalizer;
+import java.util.Calendar;
 import java.util.HashMap;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -35,8 +38,12 @@ import hd3gtv.as5kpc.protocol.ServerResponseStatus;
 import javafx.concurrent.ScheduledService;
 import javafx.concurrent.Service;
 import javafx.concurrent.Task;
+import javafx.concurrent.WorkerStateEvent;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.util.Duration;
 
 public class Serverchannel {
@@ -314,4 +321,150 @@ public class Serverchannel {
 	public String getServerLabel() {
 		return server_label;
 	}
+	
+	void appInitialize(ControllerUpdater updater) {
+		AboutServerbackgound absb = createAboutServerbackgound();
+		
+		absb.setOnSucceeded((WorkerStateEvent event_absb) -> {
+			
+			ServerResponseAbout about = absb.getValue();
+			updater.updateVTRMedia(getVtrIndex(), "PROTOCOL VERSION: " + about.getVersion(), "");
+			if (about.isCan_record()) {
+				updater.updateVTRStatus(getVtrIndex(), about.getOsd_name() + " #" + about.getCh_num(), about.getChannel_name(), "--:--:--:--", "Loading...");
+			} else {
+				updater.updateVTRStatus(getVtrIndex(), about.getOsd_name() + " #" + about.getCh_num(), about.getChannel_name(), "--:--:--:--", "CAN'T RECORD");
+				return;
+			}
+			BackgroundWatcher bw = createBackgroundWatcher();
+			bw.setDelay(Duration.seconds(1));
+			
+			bw.setOnSucceeded((WorkerStateEvent event_bw) -> {
+				ServerResponseStatus status = bw.getValue();
+				String warn = "";
+				if (status.isRec_mode() == false) {
+					warn = "Standby";
+				} else if (status.isHas_video() == false) {
+					warn = "NO VIDEO!";
+				}
+				
+				updater.updateVTRStatus(getVtrIndex(), about.getOsd_name(), status.getControl(), status.getActual_tc(), warn);
+				updater.updateVTRMedia(getVtrIndex(), status.getActive_name(), status.getActive_id());
+			});
+			
+			bw.start();
+		});
+		
+		absb.setOnFailed((WorkerStateEvent event_absb_e) -> {
+			Alert alert = new Alert(AlertType.ERROR);
+			alert.setTitle("Erreur");
+			alert.setHeaderText("Impossible de communiquer avec le serveur");
+			alert.setContentText("La machine " + toString() + " n'est pas joignable. Verifiez vos parametres réseau et la configuration du client et/ou du serveur.");
+			
+			alert.showAndWait();
+			System.exit(1);
+		});
+		
+		absb.start();
+	}
+	
+	void appCue(TextField mediaid, Label takenum, TextField showname, Button btncue, Button btnrec) {
+		int id;
+		int take;
+		try {
+			id = Integer.parseInt(mediaid.getText());
+			take = Integer.valueOf(takenum.getText());
+		} catch (Exception e) {
+			Alert alert = new Alert(AlertType.WARNING);
+			alert.setTitle("Media ID");
+			alert.setHeaderText("Erreur lors de la récupération de l'ID, seuls des chiffres sont autorisés.");
+			alert.setContentText("Détail: " + e.getMessage());
+			alert.showAndWait();
+			return;
+		}
+		
+		GetFreeClipIdBackgound gfip = getFreeClipIdBackgound(id + getVtrIndex(), take);
+		
+		gfip.setOnSucceeded((WorkerStateEvent ev) -> {
+			takenum.setText(gfip.getValue().get("take"));
+			String first_name = gfip.getValue().get("first_name");
+			if (first_name != null) {
+				final String _first_name = first_name.substring("00-00 ".length());
+				showname.setText(_first_name);
+				if (_first_name.endsWith(getServerLabel())) {
+					showname.setText(_first_name.substring(0, _first_name.length() - getServerLabel().length()).trim());
+				}
+			}
+			
+			btncue.setDisable(false);
+			mediaid.setDisable(false);
+			showname.setDisable(false);
+			btnrec.setDisable(false);
+		});
+		
+		gfip.setOnFailed((WorkerStateEvent ev) -> {
+			Alert alert = new Alert(AlertType.WARNING);
+			alert.setTitle("Cue");
+			alert.setHeaderText("Impossible de récuperer un état");
+			alert.setContentText("La récupération du statut de l'Id " + id + " n'a pas fonctionné.");
+			alert.showAndWait();
+			
+			mediaid.setDisable(false);
+			showname.setDisable(false);
+		});
+		
+		gfip.start();
+		
+	}
+	
+	public static final Pattern PATTERN_Combining_Diacritical_Marks = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
+	
+	private String makeName(String server_label, TextField showname) {
+		StringBuilder sb = new StringBuilder();
+		Calendar c = Calendar.getInstance();
+		if (c.get(Calendar.DAY_OF_MONTH) < 10) {
+			sb.append("0");
+		}
+		sb.append(c.get(Calendar.DAY_OF_MONTH));
+		sb.append("-");
+		if (c.get(Calendar.MONTH) + 1 < 10) {
+			sb.append("0");
+		}
+		sb.append(c.get(Calendar.MONTH) + 1);
+		sb.append(" ");
+		
+		String show_name = showname.getText();
+		show_name = PATTERN_Combining_Diacritical_Marks.matcher(Normalizer.normalize(showname.getText(), Normalizer.Form.NFD)).replaceAll("").trim().toUpperCase();
+		showname.setText(show_name);
+		
+		sb.append(show_name);
+		
+		if (show_name.endsWith(server_label) == false) {
+			sb.append(" ");
+			sb.append(server_label);
+		}
+		return sb.toString();
+	}
+	
+	void appRec(TextField mediaid, int _take, TextField showname) {
+		int _id;
+		try {
+			_id = Integer.parseInt(mediaid.getText()) + getVtrIndex();
+		} catch (Exception e) {
+			Alert alert = new Alert(AlertType.WARNING);
+			alert.setTitle("Media ID");
+			alert.setHeaderText("Erreur lors de la récupération de l'ID, seuls des chiffres sont autorisés.");
+			alert.setContentText("Détail: " + e.getMessage());
+			alert.showAndWait();
+			return;
+		}
+		
+		RecBackgound rec = createRecBackgound(Serverchannel.makeValidId(_id, _take), makeName(getServerLabel(), showname));
+		rec.start();
+	}
+	
+	void appStop() {
+		StopEjectBackgound stop = createStopEjectBackgound();
+		stop.start();
+	}
+	
 }
