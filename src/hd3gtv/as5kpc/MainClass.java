@@ -56,8 +56,10 @@ public class MainClass {
 		} else if (args[0].equals("3")) {
 			conf_channels = app_config.getStringArray("mode3");
 			loadMode3(args, conf_channels);
+		} else if (args[0].equals("1")) {
+			conf_channels = app_config.getStringArray("mode1");
+			loadMode1(args, conf_channels);
 		}
-		
 	}
 	
 	private static void loadMode2(String[] args, String[] conf_channels) throws Exception {
@@ -96,6 +98,20 @@ public class MainClass {
 			}
 		} else {
 			throw new NullPointerException("Can't found a \"mode3\" tag in app.properties");
+		}
+	}
+	
+	private static void loadMode1(String[] args, String[] conf_channels) throws Exception {
+		if (conf_channels != null) {
+			if (conf_channels.length == 1) {
+				log.debug("Found channel entry in app conf: " + conf_channels[0]);
+				ApplicationMode1.channel1 = new Serverchannel(loadConf(conf_channels[0] + ".properties"), conf_channels[0], 0);
+				Application.launch(ApplicationMode1.class, args);
+			} else {
+				throw new NullPointerException("The \"mode1\" tag in app.properties not 1");
+			}
+		} else {
+			throw new NullPointerException("Can't found a \"mode1\" tag in app.properties");
 		}
 	}
 	
